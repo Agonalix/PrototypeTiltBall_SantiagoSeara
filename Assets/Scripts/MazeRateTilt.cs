@@ -3,9 +3,10 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class MazeRateTilt : MonoBehaviour
 {
-    public float degreesPerSecond = 60f;
-    public float deadzoneDegrees = 3f;
-    public float smoothing = 8f;
+    public float degreesPerSecond = 45f;
+    public float deadzoneDegrees = 7f;
+    public float smoothing = 10f;
+    public float maxInputAngle = 15f;
 
     public bool simulateInEditor = true;
     public float simInputSmoothing = 10f;
@@ -16,6 +17,7 @@ public class MazeRateTilt : MonoBehaviour
 
     private Gyroscope gyro;
     private bool gyroEnabled;
+    private bool calibratedForPlay = false;
 
     private Quaternion reference;
     private bool calibrated;
@@ -47,25 +49,27 @@ public class MazeRateTilt : MonoBehaviour
         calibrated = false;
 
         if (autoCalibrateOnStart)
-            CalibrateCenter();
+            CalibrateCenterForPlay();
     }
 
-    public void CalibrateCenter()
+    public void CalibrateCenterForPlay()
     {
         if (!gyroEnabled || gyro == null)
         {
             reference = Quaternion.identity;
             calibrated = true;
+            calibratedForPlay = true;
             return;
         }
 
         reference = GyroToUnity(gyro.attitude);
         calibrated = true;
+        calibratedForPlay = true;
     }
 
     private void FixedUpdate()
     {
-        if (!calibrated) return;
+       if (!calibratedForPlay) return;
 
         float targetPitchDir = 0f;
         float targetRollDir = 0f;
@@ -95,8 +99,12 @@ public class MazeRateTilt : MonoBehaviour
             float pitchDeg = NormalizeAngle(euler.x);
             float rollDeg = NormalizeAngle(euler.z);
 
-            targetPitchDir = Mathf.Abs(pitchDeg) > deadzoneDegrees ? Mathf.Sign(pitchDeg) : 0f;
-            targetRollDir = Mathf.Abs(rollDeg) > deadzoneDegrees ? Mathf.Sign(rollDeg) : 0f;
+            float pitchNorm = Mathf.Clamp(pitchDeg / maxInputAngle, -1f, 1f);
+            float rollNorm = Mathf.Clamp(rollDeg / maxInputAngle, -1f, 1f);
+
+            // deadzone proporcional
+            targetPitchDir = Mathf.Abs(pitchDeg) > deadzoneDegrees ? pitchNorm : 0f;
+            targetRollDir = Mathf.Abs(rollDeg) > deadzoneDegrees ? rollNorm : 0f;
 
             inputPitch = Mathf.Lerp(inputPitch, targetPitchDir, smoothing * Time.fixedDeltaTime);
             inputRoll = Mathf.Lerp(inputRoll, targetRollDir, smoothing * Time.fixedDeltaTime);
